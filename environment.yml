@@ -1,0 +1,51 @@
+name: univl
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      # Core deep-learning stack
+      - torch==2.5.1+cu121
+      - torchvision==0.20.1+cu121
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+
+      # Diffusion + transformer stack
+      - diffusers==0.31.0
+      - transformers==4.49.0
+      - peft==0.15.2
+      - accelerate==0.34.2
+      - safetensors
+      - sentencepiece
+      - protobuf
+
+      # Training
+      - lightning>=2.5
+      - prodigyopt
+      - wandb
+      - datasets
+
+      # Image / data utilities
+      - opencv-python
+      - pycocotools
+      - Pillow
+      - numpy<2          # diffusers 0.31 + torch 2.5 prefer numpy<2
+      - addict
+      - easydict
+      - imgaug
+
+      # Metrics + evaluation
+      - torchmetrics
+      - torch-fidelity   # required by torchmetrics FID
+      - pyiqa            # MUSIQ etc
+      - timm
+      - matplotlib
+      - wordcloud
+
+      # Misc
+      - tqdm
+      - omegaconf
+      - PyYAML

@@ -1,0 +1,69 @@
+flux_path: "black-forest-labs/FLUX.1-dev"
+dtype: "bfloat16"
+
+# =============================================================================
+# Stage 1 — Feature Alignment (no DiT forward pass)
+#
+# Goal: teach the OCR adapter to produce conditioning features that are
+#       geometrically aligned with VAE latents (L2 loss) and semantically
+#       consistent with frozen CLIP (CLIP alignment loss).
+#
+# Trained params: omini_adapter, omini_adapter2, conv1, conv2,
+#                 clip_proj, vision_lora (tiny r=4 on CLIP backbone)
+# Frozen:         FLUX transformer LoRA, VAE, text encoders, SAM, projector
+#
+# After Stage 1:  on_train_end prints the adapter path — copy it into
+#                 configs/stage2_diffusion.yaml as trained_adapter_path.
+# =============================================================================
+
+model:
+  independent_condition: false
+  train_ocr_projector: false
+  deepseek_w_path: "checkpoints/deepseek_ocr_vision.safetensors"  # see tools/extract_deepseek_ocr_vision_weights.py
+  training_phase: 1
+
+  # Alignment losses
+  l2_loss_lambda: 4.0       # pushes adapter output → target VAE latents
+  clip_align_lambda: 0.5   # pushes adapter output → frozen original CLIP features
+
+  # No trained_adapter_path here — Stage 1 trains from scratch
+  # No trained_lora_path needed — DiT LoRA is frozen in Stage 1
+  # (lora_config below is still required for model initialization)
+
+train:
+  batch_size: 24
+  accumulate_grad_batches: 1
+  dataloader_workers: 5
+  save_interval: 2000
+  sample_interval: 99999   # no image generation in Stage 1 (DiT not trained)
+  max_steps: 30000          # ~1 epoch; stop when l2_text_loss plateaus
+  gradient_checkpointing: false  # no DiT forward → less memory needed
+  save_path: "runs"
+
+  condition_type: "ocr"
+  dataset:
+    condition_size:
+      - 512
+      - 512
+    target_size:
+      - 512
+      - 512
+    drop_text_prob: 0.1
+    drop_image_prob: 0.1
+    multibox_ratio: 0.20    # 20% of batches are multibox (2-5 masks)
+
+  wandb:
+    project: "UniVL"
+
+  # LoRA config is required for model init even though DiT LoRA is frozen in Stage 1
+  lora_config:
+    r: 4
+    lora_alpha: 4
+    init_lora_weights: "gaussian"
+    target_modules: "(.*x_embedder|.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_v|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_out\\.0|.*(?<!single_)transformer_blocks\\.[0-9]+\\.ff\\.net\\.2|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.proj_mlp|.*single_transformer_blocks\\.[0-9]+\\.proj_out|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q|.*single_transformer_blocks\\.[0-9]+\\.attn.to_v|.*single_transformer_blocks\\.[0-9]+\\.attn.to_out)"
+
+  optimizer:
+    type: AdamW
+    params:
+      lr: 0.002        # slightly higher than Stage 2 — adapter trains from scratch
+      weight_decay: 0.001

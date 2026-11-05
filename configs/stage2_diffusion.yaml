@@ -1,0 +1,68 @@
+flux_path: "black-forest-labs/FLUX.1-dev"
+dtype: "bfloat16"
+
+# =============================================================================
+# Stage 2 — Full Diffusion Training
+#
+# Loads warm-started OCR adapter weights from Stage 1, then trains:
+#   - FLUX transformer LoRA (full diffusion MSE loss)
+#   - OCR adapter (continues refinement via auxiliary L2 loss)
+#   - vision_lora (continues CLIP semantic recovery)
+#
+# How to fill in trained_adapter_path:
+#   After Stage 1 finishes, the terminal prints:
+#     "trained_adapter_path: runs/<run-name>/ckpt/final/omini_adapter.safetensors"
+#   Copy that path below.
+# =============================================================================
+
+model:
+  independent_condition: false
+  train_ocr_projector: false
+  deepseek_w_path: "checkpoints/deepseek_ocr_vision.safetensors"  # see tools/extract_deepseek_ocr_vision_weights.py
+  training_phase: 2
+
+  # Adapter (and CLIP LoRA) weights from Stage 1
+  trained_adapter_path: "runs/<stage1-run>/ckpt/final/omini_adapter.safetensors"  # Stage-1 output (required)
+
+  # Alignment losses (kept as auxiliary supervision alongside MSE)
+  l2_loss_lambda: 4.0       # reduced vs Stage 1 — MSE now dominates
+  clip_align_lambda: 3.5   # reduced vs Stage 1
+  clip_text_lambda: 0.3   # CLIP text semantic loss (category-level anchor)
+  # attn_masking is controlled solely by ATTN_MASKING flag in flux_univl.py
+
+train:
+  batch_size: 14
+  accumulate_grad_batches: 1
+  dataloader_workers: 5
+  save_interval: 1000
+  sample_interval: 150
+  max_steps: -1             # run until convergence (watch validation images)
+  gradient_checkpointing: true
+  save_path: "runs"
+
+  condition_type: "ocr"
+  dataset:
+    condition_size:
+      - 512
+      - 512
+    target_size:
+      - 512
+      - 512
+    drop_text_prob: 0.1
+    drop_image_prob: 0.1
+    multibox_ratio: 0.20    # 20% of batches are multibox (2-5 masks)
+
+  wandb:
+    project: "UniVL"
+
+  lora_config:
+    r: 4
+    lora_alpha: 4
+    init_lora_weights: "gaussian"
+    target_modules: "(.*x_embedder|.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_v|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_out\\.0|.*(?<!single_)transformer_blocks\\.[0-9]+\\.ff\\.net\\.2|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.proj_mlp|.*single_transformer_blocks\\.[0-9]+\\.proj_out|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q|.*single_transformer_blocks\\.[0-9]+\\.attn.to_v|.*single_transformer_blocks\\.[0-9]+\\.attn.to_out)"
+
+  optimizer:
+    type: AdamW
+    params:
+      lr: 0.0001
+      weight_decay: 0.001

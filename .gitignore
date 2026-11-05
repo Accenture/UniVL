@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Training runs, logs, and outputs
+runs/
+outputs/
+wandb/
+*.log
+
+# Local data, weights, and third-party checkouts (see README)
+data_root/
+checkpoints/
+third_party/
+cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

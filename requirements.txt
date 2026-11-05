@@ -1,0 +1,34 @@
+# Tested with Python 3.10 and CUDA 12.1. Install torch first:
+#   pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
+diffusers==0.31.0
+transformers==4.49.0
+peft==0.15.2
+accelerate==0.34.2
+safetensors
+sentencepiece
+protobuf
+huggingface_hub
+# training
+lightning>=2.5
+prodigyopt
+wandb
+datasets
+# data and image utilities
+opencv-python
+pycocotools
+Pillow
+numpy<2
+addict
+easydict
+imgaug
+tqdm
+omegaconf
+PyYAML
+# evaluation
+torchmetrics
+torch-fidelity
+pyiqa
+timm
+# optional: data/analyze_label_vocabulary.py
+matplotlib
+wordcloud
